@@ -125,7 +125,12 @@ Then, expose the `/actuator/prometheus` endpoint for Prometheus to scrape.
 
 ## Actuator Endpoints Reference
 
-By default, only `/health` is exposed over the web. Use `management.endpoints.web.exposure.include=*` to expose all (not recommended for production).
+### Default Exposure (Crucial for Interviews)
+*   **Web (HTTP)**: By default, ONLY the **`health`** endpoint is exposed. (Note: In Spring Boot 2.4 and older, `info` was also exposed by default).
+*   **JMX**: By default, **ALL** endpoints are exposed.
+*   **Enabled vs Exposed**: An endpoint can be *enabled* (the bean exists) but not *exposed* (accessible via a port). Most endpoints are *enabled* by default but not *exposed* over Web. The `shutdown` endpoint is the only one *disabled* by default.
+
+Use `management.endpoints.web.exposure.include=*` to expose all (not recommended for production).
 
 | Endpoint      | Description                                                                 | Property to Enable/Disable (if not default) |
 | :------------ | :-------------------------------------------------------------------------- | :------------------------------------------ |

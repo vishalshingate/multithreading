@@ -15,7 +15,7 @@ This project demonstrates a microservice architecture using Spring Boot, Spring 
 
 - [**Spring Architecture Flow**](./SPRING_ARCHITECTURE_FLOW.md): Detailed explanation of Controller-Service-Repository flow, Idempotency, and Optimistic Locking (`@Version`).
 - **[REST API Best Practices](./REST_API_BEST_PRACTICES.md)**: Industry standards for API design.
-- **[Java Migration Guide](./JAVA_MIGRATION_GUIDE.md)**: Steps to migrate from Java 8 to 11 and 11 to 21.
+- **[Java Migration Guide](java-basic-oop/JAVA_MIGRATION_GUIDE.md)**: Steps to migrate from Java 8 to 11 and 11 to 21.
 - **[Deployment Guide](./DEPLOYMENT.md)**: How to deploy this project to Kubernetes (GCP/Azure).
 - **[Troubleshooting & Operations](./TROUBLESHOOTING.md)**: Zipkin tracing, SQL logging, and more.
 

@@ -74,3 +74,34 @@ public static synchronized void method() { ... }
 
 > **Best Practice:** Prefer `synchronized(lockObject)` over `synchronized(this)` to prevent external callers from locking your object and causing deadlocks.
 
+---
+
+## 6. Real World Interview Question: Why Static Variables? (ThingWorx Project Context)
+
+**Question:** Why are static variables needed and where have you used them in your project (specifically ThingWorx)?
+
+### Theoretical Answer (Why Needed?)
+1.  **Memory Efficiency:** Static variables are per-class, not per-object. If you have 1000 objects but one common property (like a configuration constant), `static` saves memory by storing it once in Metaspace.
+2.  **Global Access:** They allow access to data or methods without instantiating the class (e.g., Utility classes).
+3.  **State Sharing:** They can maintain a common state across all instances (e.g., a counter).
+
+### Project Implementation (ThingWorx / IoT Context)
+In our IoT Edge Gateway aimed at ThingWorx integration, we used `static` in three key areas:
+
+1.  **Property Mapping Constants (`public static final`):**
+    *   ThingWorx generally requires data to be pushed in a "Property Bag" (DataShape).
+    *   We defined the property names as static constants to avoid typos and determining them at runtime which creates unnecessary String objects on the Heap.
+    ```java
+    public class TWXConstants {
+        // Maps to the "RemoteThing" property on the ThingWorx Platform
+        public static final String PROP_TEMPERATURE = "Temp_C";
+        public static final String PROP_VIBRATION = "Vibration_Hz";
+    }
+    ```
+
+2.  **The Connected Client Singleton:**
+    *   The `ConnectedThingClient` (from ThingWorx Java SDK) is a heavy object that maintains the active WebSocket connection to the ThingWorx server.
+    *   We used a `private static` variable to hold this client instance (Singleton pattern) to ensure we only have **one** open connection per application, preventing port exhaustion or licensing limits on the server side.
+
+3.  **Topic/Queue Definitions:**
+    *   For the fallback mechanism, we defined the queue names (for ActiveMQ/RabbitMQ) as static variables to be shared between the *Producer Service* (reading sensors) and the *Consumer Service* (sending to ThingWorx).
