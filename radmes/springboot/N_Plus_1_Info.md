@@ -62,6 +62,23 @@ This reduces queries by fetching posts for 10 users at once (e.g., `WHERE user_i
 
 ---
 
+## Simulation Scenario
+
+To see the impact of N+1, we have initialized the database with:
+- **100 Users**
+- **50 Posts per User** (Total 5,000 posts)
+
+### Performance Impact:
+1. **With N+1 (Lazy loading without Join Fetch):**
+   - Fetching all users and their posts will trigger **101 queries**. 
+   - Many small queries cause significant database overhead.
+
+2. **With Solution (JOIN FETCH):**
+   - Fetching all users and their posts will trigger **1 query**.
+   - One large optimized query is much faster.
+
+You can test this by calling the `findAllWithPosts()` method in `UserRepository` and observing the SQL logs.
+
 ## Other Errors Mentioned
 
 ### User Not Found (404)
@@ -79,4 +96,3 @@ The error `User not found id: 9` is a custom 404 response you likely implemented
     @GetMapping("/users")
     ```
     (Equivalent to the above `RequestMapping`).
-
