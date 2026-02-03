@@ -57,27 +57,35 @@ This is where 90% of the work happens. The method is called `refresh()`.
    - It performs **Dependency Injection** (injecting Service into Controller, Repository into Service).
    - It runs `@PostConstruct` methods.
 
-### Step F: Finish Up
-1. **StopWatch Stop**: Timer ends.
-2. **Log Startup**: Prints the banner and the "Started..." log.
+### Step F: Running Runners
+After the context is fully refreshed, Spring calls:
+1.  **`CommandLineRunner`**
+2.  **`ApplicationRunner`**
+These are your hooks to run code once the app is "up."
 
-### Step G: Run Runners
-If you have any beans that implement `CommandLineRunner` or `ApplicationRunner`, their `run()` methods are executed **now**, after the context is fully ready.
+---
 
-### Deep Dive: Runners (Executing code after startup)
-Spring Boot provides two interfaces to run specific code **once** right after the application context is loaded and the app has started.
+## 3. The Shutdown Flow (Ending of Spring)
+What happens when you call `context.close()` or hit `Ctrl+C`?
 
-1. **`CommandLineRunner`**
-   - **Method**: `void run(String... args)`
-   - **Input**: Receives raw command line arguments as a String array (just like `main` method).
-   - **Use Case**: Simple tasks where you don't need to parse complex flags (e.g., `--server.port=8080`).
+1.  **Shutdown Hook Triggered**: Spring registers a JVM shutdown hook.
+2.  **Event Broadcast**: An `ContextClosedEvent` is published.
+3.  **Destruction Phase**:
+    - **`@PreDestroy`** methods are called.
+    - **`DisposableBean.destroy()`** is called.
+    - Custom `destroy-method` in `@Bean` is called.
+4.  **Close BeanFactory**: The container stops creating or serving beans.
+5.  **Stop Web Server**: Tomcat/Jetty is stopped, closing all open ports and connections.
+6.  **JVM Exit**: Once all threads are stopped, the JVM process terminates.
 
-2. **`ApplicationRunner`**
-   - **Method**: `void run(ApplicationArguments args)`
-   - **Input**: Receives an `ApplicationArguments` object which separates "option arguments" (starting with `--`) from "non-option arguments".
-   - **Use Case**: Better when you need to parse flags like `--mode=import` vs `filename.txt`.
+---
 
-**Ordering**: If you have multiple runners, use `@Order(1)`, `@Order(2)` to control execution sequence.
+## 4. Component Scan vs Auto-Configuration: Which is first?
+**ANSWER: Component Scan is First.**
+
+1.  **Component Scan** reads your code and registers your beans.
+2.  **Auto-Configuration** then runs and says: *"I see the user didn't define a DataSource (checked via @ConditionalOnMissingBean), so I will create a default one."*
+- If Auto-Configuration ran first, it would create default beans for everything, and your custom beans would cause "Duplicate Bean" errors.
 
 ---
 

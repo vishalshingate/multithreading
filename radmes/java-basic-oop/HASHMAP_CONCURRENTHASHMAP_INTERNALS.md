@@ -45,6 +45,40 @@ If a bucket has too many collisions (>= 8) but the total array size is small (< 
 - Fail-fast (best-effort): throw `ConcurrentModificationException` if structurally modified (non-iterator) during iteration.
 - Not safe under concurrent writes without external synchronization.
 
+### Custom Objects as Keys
+Can we use custom objects as keys in a HashMap? **Yes.**
+
+To do this correctly, you **MUST** follow these rules:
+1.  **Override `hashCode()`**: So that equal objects produce the same hash and land in the same bucket.
+2.  **Override `equals()`**: To distinguish between different objects in the same bucket (collisions).
+3.  **Immutability (Highly Recommended)**: If the state of your object changes after being used as a key, its `hashCode` will change. The map will look in the wrong bucket next time, and your entry will be "lost" inside the map.
+
+**Example:**
+```java
+public final class User { // Final to prevent inheritance
+    private final String id; // Final for immutability
+    private final String name;
+
+    public User(String id, String name) {
+        this.id = id;
+        this.name = name;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, name);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof User)) return false;
+        User user = (User) o;
+        return Objects.equals(id, user.id) && Objects.equals(name, user.name);
+    }
+}
+```
+
 ---
 
 ## ConcurrentHashMap Internals

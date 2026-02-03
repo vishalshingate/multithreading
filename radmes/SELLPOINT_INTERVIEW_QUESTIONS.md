@@ -12,7 +12,19 @@ This document is a comprehensive resource for senior Java developers, covering J
 5. [🗄 Persistence: JDBC, JPA & Hibernate](#-persistence-jdbc-jpa--hibernate)
 6. [🧩 Design Patterns & SOLID](#-design-patterns--solid)
 7. [🌐 Microservices & System Design](#-microservices--system-design)
-8. [🛑 Production Issues & Troubleshooting (Top 30 Questions)](#-production-issues--troubleshooting-top-30-questions)
+8. [🛑 Production Issues & Troubleshooting (Expert Level)](#-production-issues--troubleshooting-expert-level)
+9. [📚 Deep Dive Links](#-deep-dive-links)
+
+---
+
+## 📚 Deep Dive Links
+For more details on specific topics, refer to these dedicated guides:
+- [HashMap & ConcurrentHashMap Internals](./java-basic-oop/HASHMAP_CONCURRENTHASHMAP_INTERNALS.md)
+- [Java Concurrency & Memory Model](./java-basic-oop/JAVA_CONCURRENCY_INTERNALS.md)
+- [Spring Boot Startup & Shutdown Flow](./springboot/SPRING_BOOT_STARTUP_STEPS.md)
+- [Advanced Collections & Design Patterns](./java-basic-oop/ADVANCED_JAVA_COLLECTIONS_PATTERNS.md)
+- [Agile Leadership & Mentorship](./AGILE_LEADERSHIP_MENTORSHIP.md)
+- [Spring Boot Scenario Deep Dives](./springboot/SPRING_BOOT_DEEP_DIVES.md)
 
 ---
 
@@ -163,15 +175,34 @@ Producer ----> [ ArrayBlockingQueue (Lock) ] ----> Consumer
 
 ## 🗄 Persistence: JDBC, JPA & Hibernate
 
-### 1. JDBC Interview Questions
-*   **What is JDBC?**: Java Database Connectivity API.
-*   **Statement vs PreparedStatement**: `PreparedStatement` is pre-compiled and protects against **SQL Injection**.
-*   **Connection Pooling**: Reusing connections to avoid the expensive cost of opening a new physical connection for every request. **Examples**: HikariCP (default in Boot), Tomcat JDBC.
-*   **Dirty Reads**: Reading uncommitted data from another transaction. Prevented by using `READ_COMMITTED` isolation level.
+### 1. JDBC Connection Flow
+```java
+// Traditional JDBC Flow
+Connection conn = DriverManager.getConnection(url, user, pass);
+PreparedStatement ps = conn.prepareStatement("SELECT * FROM users WHERE id = ?");
+ps.setInt(1, 123);
+ResultSet rs = ps.executeQuery();
+while(rs.next()) {
+    System.out.println(rs.getString("username"));
+}
+rs.close(); ps.close(); conn.close(); // MUST CLOSE RESOURCES
+```
 
----
+### 2. JDBC Interview Questions
+- **Statement vs PreparedStatement**: PreparedStatement is pre-compiled (faster for repeated calls) and prevents **SQL Injection** via parameter binding.
+- **Connection Pooling (HikariCP)**: Why? Creating a DB connection is expensive (TCP handshake, Auth). Pooling keeps connections open and reuses them.
+- **Batch Processing**: Use `addBatch()` and `executeBatch()` to send multiple queries in one network round-trip.
 
-## 🏗 Microservices & System Design
+### 3. @Controller vs @RestController
+- **@Controller**: Used for traditional Spring MVC apps that return **Views** (HTML/Thymleaf). Requires `@ResponseBody` on methods to return JSON.
+- **@RestController**: A convenience annotation that combines `@Controller` and `@ResponseBody`. Used for REST APIs that return data (JSON/XML).
+
+### 4. Service vs Repository Interchangeability
+- Technically, both are `@Component`. Spring will perform DI regardless.
+- **However**, `@Repository` adds translation of persistence-specific exceptions (like `SQLException` into `DataAccessException`).
+- **Best Practice:** Use them as intended for readability and specialized behavior.
+
+---## 🏗 Microservices & System Design
 
 ### 1. @Controller vs @RestController
 *   **@RestController** = `@Controller` + `@ResponseBody`.
@@ -190,8 +221,27 @@ Producer ----> [ ArrayBlockingQueue (Lock) ] ----> Consumer
 
 ## 🧩 Design Patterns & SOLID
 
-### 1. Singleton Pattern (Safe implementation)
-The most robust way is the **Enum Singleton** (thread-safe, serializable, handles reflection attacks). But for classes that need inheritance, use the **Bill Pugh Helper Class**:
+### 1. SOLID in Spring Boot
+- **Single Responsibility**: Controllers handle HTTP, Services handle logic, Repos handle DB.
+- **Open/Closed**: Use `@Conditional` or Profiles to add new behavior without changing existing code.
+- **Liskov Substitution**: Spring DI injects interfaces, allowing any implementation to be swapped in.
+- **Interface Segregation**: Modularizing APIs into small, focused controllers.
+- **Dependency Inversion**: High-level services depend on Repository abstractions, not specific JPABoot implementations.
+
+### 2. Common Patterns Used in Spring
+- **Proxy Pattern**: Used in `@Transactional`, `@Async`, and `@Cacheable`.
+- **Builder Pattern**: Used in `RestTemplateBuilder` or Lombok `@Builder`.
+- **Factory Pattern**: `BeanFactory` and `FactoryBean`.
+- **Strategy Pattern**: `ResourceLoader` choosing between `UrlResource` or `ClassPathResource`.
+- **Observer Pattern**: `ApplicationEventPublisher` and `@EventListener`.
+
+### 3. Builder Pattern: Why use it?
+- **Problem**: Large constructors with many optional parameters (Telescoping Constructor).
+- **Solution**: Provides a fluent API to build objects step-by-step. It makes code readable and ensures objects are immutable once built.
+
+### 4. Singleton Pattern & Helper Class
+- **Question:** What is the best way to implement a thread-safe Singleton without synchronization?
+- **Answer:** The **Bill Pugh Singleton Implementation** (using a static inner helper class).
 ```java
 public class Singleton {
     private Singleton() {} // Private constructor
@@ -358,3 +408,4 @@ These questions separate senior developers from beginners. They focus on **decis
     *   **Tracing vs Metrics**: Metrics are for **Aggregates** (How many 500s?). Distributed Tracing (**Zipkin/Jaeger**) is for **Investigation** (Which user saw this 500?).
 *   **Why is Tracing better for this?**: Tracing is sampling-based and stores high-detail data (like UserID) externally, not in your app's memory-mapped metric store.
 
+---
