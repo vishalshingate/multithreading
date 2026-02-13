@@ -48,10 +48,21 @@
 *   **Discussion Points:**
     *   **Drawbacks of Java Serialization:** Verbose, slow, security vulnerabilities.
     *   **Alternatives:** `GenericJackson2JsonRedisSerializer` or `StringRedisSerializer`.
-    *   **Binary Formats:** Protobuf or Kryo for high-throughput, low-latency requirements.
-    *   Compression (Gzip/Snappy) for large objects before storing in Redis.
 
-## 7. Handling Redis Downtime
+## 7. Redis vs. Spring Cache Abstraction
+**Question:** What is the difference between Redis and other caching mechanisms provided by Spring?
+
+**Answer:**
+*   **Abstraction vs. Store:** Spring Cache is an **abstraction layer** (an interface) that allows you to swap caching providers (ConcurrentHashMap, EhCache, Redis, Caffeine) without changing code. Redis is a specific **distributed in-memory data store**.
+*   **Local vs. Distributed:** Spring's default `SimpleCacheManager` (using Maps) and providers like Caffeine are **local** to the JVM. If you have 3 pods, you have 3 separate caches. Redis is **external and distributed**, meaning all 3 pods share the same data (Single Source of Truth).
+*   **Features:** Redis supports advanced features that local Spring caches do not, such as:
+    *   **Persistence:** Saving data to disk (RDB/AOF).
+    *   **Eviction Policies:** Global policies (LRU/LFU) across the entire cluster.
+    *   **Data Structures:** Lists, Sets, Sorted Sets, Pub/Sub (Spring Cache only uses Key-Value).
+    *   **Scalability:** Clustering and Sentinel for high availability.
+*   **Production Use:** In production systems, Redis is preferred for **consistency** (users don't see stale data when hitting different pods) and **reliability**.
+
+## 8. Handling Redis Downtime
 **Scenario:** The Redis cluster acts up or goes down completely.
 *   **Question:** How do you ensure your Spring Boot application doesn't crash effectively becoming unavailable?
 *   **Discussion Points:**
@@ -59,14 +70,14 @@
     *   **Circuit Breaker:** Use Resilience4j to wrap cache calls. If Redis fails, fall back to DB directly or return default/empty responses (Degraded mode).
     *   `CachingConfigurerSupport` and `ErrorHandler`: Custom error handling in Spring Cache to log errors instead of throwing exceptions to the caller.
 
-## 8. Hot Key Issue
+## 9. Hot Key Issue
 **Scenario:** One specific key (e.g., a viral tweet or a flash sale item) is being accessed so frequently that a single Redis shard becomes the bottleneck (CPU 100%).
 *   **Question:** How do you mitigate the "Hot Key" problem?
 *   **Discussion Points:**
     *   **Local Caching (Multi-level Cache):** Use Caffeine/Guava in-memory cache on the application JVM for these specific hot keys (L1 Cache) backed by Redis (L2 Cache).
     *   **Key Replication:** Create `key_1`, `key_2`, `key_N` and distribute reads across them (though writes become harder).
 
-## 9. Transactional Support
+## 10. Transactional Support
 **Scenario:** You need to perform multiple Redis operations atomically (e.g., decrement stock and add item to user cart).
 *   **Question:** Does Spring's `@Transactional` work with Redis?
 *   **Discussion Points:**
@@ -74,7 +85,7 @@
     *   `MULTI` / `EXEC` blocks in Redis.
     *   Lua Scripts: The preferred way to ensure atomicity for complex operations in Redis (using `RedisTemplate.execute(script, ...)`).
 
-## 10. Spring Boot Customization
+## 11. Spring Boot Customization
 **Scenario:** You want to cache data based on multiple parameters, but exclude specific fields from the key generation (e.g. `userId` and `date` are keys, but `requestId` is just for tracing).
 *   **Question:** How do you implement this in Spring Boot?
 *   **Discussion Points:**

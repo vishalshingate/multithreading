@@ -115,3 +115,124 @@ These annotations are used to define a global exception handler or global data b
     2.  Since the requirement is *local* (without affecting other controllers), add an `@ExceptionHandler(MethodArgumentTypeMismatchException.class)` method directly inside the `UserController` class, not in the global advice.
     3.  Return the custom message from there.
 
+---
+
+## 4. Checked vs. Unchecked Exceptions in the Real World
+
+This is a critical distinction that separates "coding" from "engineering" in Java applications.
+
+### 1. Checked Exceptions: "Force to Recover"
+**Philosophy:** The compiler *forces* you to acknowledge that "this operation might fail, and you MUST have a Plan B." It represents **recoverable conditions** outside the program's control (Network, Disk, Database).
+
+**Why it matters in Spring Boot?**
+It prevents critical flows from silencing failures. It forces the developer to write contingency logic.
+
+**Real Industry Example: The Payment Gateway Integration**
+Imagine you are building a Fintech app integrated with Stripe/PayPal.
+*   **The Scenario:** You call `paymentService.chargeCreditCard(details)`.
+*   **The Problem:** The network might timeout, or the bank might decline.
+*   **Checked Exception (`PaymentProcessingException`):**
+    
+    **Step 1: Create the Exception** (Must extend `Exception`, not `RuntimeException`)
+    ```java
+    public class PaymentProcessingException extends Exception {
+        public PaymentProcessingException(String message) {
+            super(message);
+        }
+        // Important to preserve the root cause
+        public PaymentProcessingException(String message, Throwable cause) {
+            super(message, cause);
+        }
+    }
+    ```
+
+    **Step 2: Use it in Service Layer**
+    ```java
+    // Service Layer
+    public void processOrder(Order order) throws PaymentProcessingException {
+        try {
+             externalGateway.charge(order.getAmount());
+        } catch (IOException e) {
+             // You are FORCED to handle this.
+             // Plan B: Mark order as "PENDING_RETRY" and trigger a background job.
+             throw new PaymentProcessingException("Gateway timeout", e); 
+        }
+    }
+    ```
+
+    **How do I make it compulsory? (The "Catch or Declare" Rule)**
+    *   **The Magic:** Just by making your class extend `Exception` (instead of `RuntimeException`), you trigger the Java Compiler's enforcement.
+    *   **If you remove `throws PaymentProcessingException`:** The code **will not compile**. The compiler will say: *"Unhandled exception type PaymentProcessingException"*.
+    *   **The Result:** You created a contract. Anyone who calls `processOrder()` **MUST** now wrap it in a `try-catch` block or re-throw it. You have successfully "forced" them to handle the failure.
+*   **The "Actual Difference":** If this was unchecked, a lazy developer might ignore it. The transaction would fail, the stack trace would vanish into logs, and the user would think the order is placed but no money was moved. Checked exceptions force the **Architecture to handle resilience**.
+
+**Real Industry Example: File Processing (Regulatory Reports)**
+*   **The Scenario:** Your app reads a daily CSV report from a shared drive to reconcile accounts.
+*   **Checked Exception (`FileNotFoundException`, `IOException`):**
+    *   The file might be locked by another process.
+    *   The disk might be full.
+    *   **Handling:** The compiler ensures you catch this. Your `catch` block should probably send an alert to the DevOps team (PagerDuty) or try a backup file path.
+
+---
+
+### 2. Unchecked Exceptions (RuntimeExceptions): "Fail Fast"
+**Philosophy:** These represent **programming errors** or **irrecoverable system faults**. If these happen, the code is likely buggy (e.g., passing null) or the environment is broken (e.g., OutOfMemory). You generally *cannot* recover from these in the business logic flow.
+
+**Importance:**
+*   **Code Cleanliness:** You don't want `try-catch` blocks polluting every single method call for things you can't fix (like `NullPointerException`).
+*   **Transaction Management:** In Spring, **Unchecked Exceptions trigger a Transaction Rollback by default**. Checked exceptions DO NOT.
+
+**Real Industry Example: Data Integrity Validation**
+*   **The Scenario:** A user tries to transfer money to a negative account ID.
+*   **Unchecked Exception (`IllegalArgumentException`):**
+    ```java
+    public void transfer(String fromAccount, String toAccount, BigDecimal amount) {
+        if (amount.compareTo(BigDecimal.ZERO) <= 0) {
+            throw new IllegalArgumentException("Transfer amount must be positive"); 
+        }
+        // ...
+    }
+    ```
+*   **Why Unchecked?** There is no "Plan B" for the code to fix a negative amount. The *caller* (client) sent bad data. The request should simply fail immediately (fail-fast) and return a 400 Bad Request.
+
+**How Unchecked Exceptions are Handled in Spring Boot:**
+
+1.  **Transactional Boundaries (`@Transactional`):**
+    *   By default, if an unchecked exception (`RuntimeException`) bubbles out of a `@Transactional` method, Spring marks the transaction for **rollback**.
+    *   If a checked exception bubbles out, Spring **commits** the transaction (unless you specify `rollbackFor = Exception.class`).
+    
+    *   **Why this difference?** Spring assumes Check Exceptions are "business events" (like "InsufficientFunds") where you might still want to save the audit log of the failed attempt. Unchecked exceptions are "system crashes" where everything should be nuked to maintain consistency.
+
+2.  **Global Exception Handling (`@ControllerAdvice`):**
+    *   Unchecked exceptions bubble all the way up to the Controller.
+    *   We use `@ControllerAdvice` to catch them globally and convert them into standard JSON error responses.
+
+    ```java
+    @RestControllerAdvice
+    public class GlobalExceptionHandler {
+
+        // Handle logical errors (Unchecked)
+        @ExceptionHandler(IllegalArgumentException.class)
+        public ResponseEntity<String> handleBadInput(IllegalArgumentException ex) {
+            return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(ex.getMessage());
+        }
+
+        // Handle unexpected crashes (Unchecked)
+        @ExceptionHandler(RuntimeException.class)
+        public ResponseEntity<String> handleRuntime(RuntimeException ex) {
+            // Log full stack trace for devs
+            log.error("Unknown error", ex);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body("Something went wrong");
+        }
+    }
+    ```
+
+### Summary Table
+
+| Feature | Checked Exceptions | Unchecked Exceptions |
+| :--- | :--- | :--- |
+| **Java Parent** | `Exception` | `RuntimeException` |
+| **Philosophy** | **Recoverable** contingency (Plan B required). | **Irrecoverable** error or Bug (Fix the code). |
+| **Spring Transaction** | Does **NOT** rollback by default. | **DOES** rollback by default. |
+| **Use Case** | External API failures, File IO, "Insufficient Funds". | Null pointers, Invalid Arguments, Database Down. |
+| **Who Handles?** | The immediate caller (forced by compiler). | Often the Global Exception Handler (framework level). |

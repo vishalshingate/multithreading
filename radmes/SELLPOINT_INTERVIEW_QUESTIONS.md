@@ -407,5 +407,3 @@ These questions separate senior developers from beginners. They focus on **decis
     *   **Aggregation**: Only use tags with low cardinality (e.g., `status_code`, `region`).
     *   **Tracing vs Metrics**: Metrics are for **Aggregates** (How many 500s?). Distributed Tracing (**Zipkin/Jaeger**) is for **Investigation** (Which user saw this 500?).
 *   **Why is Tracing better for this?**: Tracing is sampling-based and stores high-detail data (like UserID) externally, not in your app's memory-mapped metric store.
-
----

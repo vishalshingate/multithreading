@@ -221,10 +221,166 @@ else synchronized on bin head: insert/update; treeify if needed
 
 ---
 
-## Common Interview Pointers
-- HashMap resize and treeification thresholds; why treeification waits until capacity >= 64.
-- Why HashMap is unsafe concurrently (possible lost updates, infinite loop bug in 7 during resize).
-- ConcurrentHashMap null policy rationale.
-- Differences between fail-fast and weakly consistent iterators.
-- JDK 7 CHM segmentation vs JDK 8+ CAS + bin locking.
-- How resizing works in CHM (forwarding nodes, cooperative transfer).
+## Common Interview Pointers & Answers
+
+### 1. HashMap treeification: Why wait until capacity >= 64?
+- **Thresholds**: `TREEIFY_THRESHOLD = 8`, `UNTREEIFY_THRESHOLD = 6`, and `MIN_TREEIFY_CAPACITY = 64`.
+- **Rationale**: Tree nodes (`TreeNode`) are roughly twice the size of standard nodes. Converting to a tree is expensive in terms of memory. If the array is small (< 64), it's more efficient to just **resize** (double the capacity). Resizing redistributes keys into new buckets, which naturally reduces collision chain lengths without the memory overhead of a Red-Black tree.
+
+### 2. Why is HashMap unsafe concurrently?
+- **Lost Updates**: If two threads call `put()` for different keys that hash to the same bucket, they might both see the same "next" node and attempt to link their new node to it. One thread will overwrite the other's work.
+- **Infinite Loop (JDK 7)**: During resize, JDK 7 used "head-insertion" to move entries. In a concurrent race, pointers can be corrupted to form a **circular dependency** (e.g., Node A.next = B and Node B.next = A). A subsequent `get()` on that bucket will enter an infinite loop, spiking CPU to 100%.
+- **Data Corruption (JDK 8+)**: While JDK 8+ uses "tail-insertion" to prevent the infinite loop bug, it is still not thread-safe and can suffer from corrupted tree structures or incorrect size counts.
+
+### 3. ConcurrentHashMap null policy rationale?
+- **Ambiguity**: In a concurrent environment, if `map.get(key)` returns `null`, you don't know if the key is missing or if the value is actually `null`. 
+- **Race Condition**: In a simple `HashMap`, you would call `map.containsKey(key)` to check. However, in `ConcurrentHashMap`, the map could be changed by another thread *between* your `get()` and `containsKey()` calls. To prevent this "check-then-act" race condition, Doug Lea decided to disallow `null` entirely.
+
+### 4. Fail-Fast vs. Weakly Consistent Iterators?
+- **Fail-Fast (`HashMap`)**: Uses a `modCount`. If the map is structurally modified while iterating (excluding `Iterator.remove()`), it throws `ConcurrentModificationException`. This is a "best-effort" protection against concurrent bugs.
+- **Weakly Consistent (`CHM`)**: Designed for high concurrency. It traverses elements as they existed at the start of iteration. It does not throw CME and *may* (but is not guaranteed to) reflect modifications that happen during iteration.
+
+### 5. JDK 7 CHM Segmentation vs. JDK 8+ CAS Locking?
+- **JDK 7 (Segmented Locks)**: Uses an array of `Segment`s (usually 16), each extending `ReentrantLock`. Since locks are at the segment level, only 16 threads can write concurrently if they land in different segments.
+- **JDK 8+ (Bin Locking)**: Scraps segments for a single `Node[]`. It uses **CAS** to insert into empty bins and **synchronized** on the **head node** of a bin only when collisions occur. This moves the lock granularity from the segment level to the individual bin level, allowing for much higher write concurrency (scaling with table size).
+
+---
+
+## 7. Deep Dive: How Cooperative Resizing Works (Step-by-Step)
+This is the "magic" that allows `ConcurrentHashMap` to resize without a global lock.
+
+1.  **The Trigger**: A thread finds that `size > threshold` (0.75 * capacity). It allocates a `nextTable` (double size).
+2.  **The Stride (Work Chunks)**: The transfer is split into chunks called "strides" (default min 16 bins).
+    *   The index `transferIndex` keeps track of the boundary.
+    *   Example: Transferring 64 bins.
+        *   Thread A claims bins `[48-63]`.
+        *   Thread B (trying to `put` implies it wants to write) sees a resize is active. It claims bins `[32-47]`.
+3.  **The Transfer Loop**:
+    *   The thread locks the **Bin Head** (synchronized).
+    *   It splits the list/tree for that bin into `lowNode` (stays at index `i`) and `highNode` (moves to `i + n`).
+    *   It writes these directly to the `nextTable`.
+4.  **The ForwardingNode**:
+    *   Once a bin is fully moved, the thread places a `ForwardingNode` (hash = -1) in the **Old Table** at that index.
+    *   This node contains a pointer to the `nextTable`.
+5.  **Handling Late Arrivals**:
+    *   **Readers**: If `get()` hits a `ForwardingNode`, it redirects to `nextTable`.
+    *   **Writers**: If `put()` hits a `ForwardingNode`, the writer realizes, "I can't write here, this bin is moving! I will go help transfer other bins instead of blocking."
+
+### Visual: Cooperative Resizing
+```text
+Old Table (Size 16)
+[Bin 0] ... [Bin 14] [ForwardingNode]--> Points to New Table (Size 32)
+              ^
+              |
+Thread A is resolving collisions here.
+
+Thread B comes to write to Bin 15.
+Thread B sees ForwardingNode at Bin 15.
+Thread B checks `transferIndex`.
+Thread B claims Bin 0-15 to help transfer.
+```
+
+---
+
+## 8. LinkedHashMap: The "Ordered" Cousin
+
+**Question:** What are the special properties of LinkedHashMap and why does it get used in specific scenarios?
+**Answer:**
+`LinkedHashMap` extends `HashMap` but adds a **doubly-linked list** running through all its entries. This maintains iteration order.
+
+### Special Properties:
+1.  **Insertion Access Order (Default)**: Iterating gives keys in the order they were inserted.
+2.  **Access Order (Optional)**: If constructed with `accessOrder = true`, iterating gives keys in the order they were **last accessed** (Get/Put).
+    *   **Real World Use Case (LRU Cache):** This is the foundation of a "Least Recently Used" cache. By overriding `removeEldestEntry()`, you can automatically delete the oldest accessed item when the map grows too big.
+
+```java
+// LRU Cache Example (keeps last 100 accessed items)
+Map<Integer, String> lruCache = new LinkedHashMap<>(16, 0.75f, true) {
+    @Override
+    protected boolean removeEldestEntry(Map.Entry<Integer, String> eldest) {
+        return size() > 100;
+    }
+};
+```
+
+---
+
+## 9. Custom Objects as Keys
+**Question:** Can we make HashMap keys as custom objects? Give a real-time example.
+**Answer:**
+Yes, but you **MUST** override both `equals()` and `hashCode()` correctly. If you don't, individual instances with the same data will be treated as different keys because the default `Object.hashCode()` uses the memory address.
+
+### Rules:
+1.  **Immutable**: Keys should ideally be immutable (or at least their `hashCode` fields shouldn't change). If a key's hash changes after it's in the map, you can never find it again (State corruption).
+2.  **Consistency**: `hashCode` must return the same value for the same object properties. `equals` must be consistent with `hashCode`.
+
+### Enterprise Example: Composite Key
+In a banking app, you might need to cache User Privileges based on `Region` + `Role`.
+
+```java
+public final class UserKey {
+    private final String userId; // e.g., "U1001"
+    private final String region; // e.g., "APAC"
+
+    public UserKey(String userId, String region) {
+        this.userId = userId;
+        this.region = region;
+    }
+
+    // HashCode combines all significant fields
+    @Override
+    public int hashCode() {
+        return Objects.hash(userId, region);
+    }
+
+    // Equals checks content, not memory address
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof UserKey)) return false;
+        UserKey that = (UserKey) o;
+        return Objects.equals(userId, that.userId) &&
+               Objects.equals(region, that.region);
+    }
+}
+
+// Usage
+Map<UserKey, List<String>> privilegeCache = new HashMap<>();
+privilegeCache.put(new UserKey("U1001", "APAC"), Arrays.asList("VIEW_ACCOUNTS", "APPROVE_LOANS"));
+```
+
+---
+
+## 10. Common Interview Deep Dives
+
+### Q1: Why does treeification wait until capacity >= 64? (The "64 Rule")
+If the `size` of the map is small (e.g., 32), and one bucket has 8 items (collision), Java prefers to **resize the array** (to 64) rather than **treeify** that bucket.
+*   **Reason:** Resizing (doubling buckets) is usually faster and spreads the keys out. Treeification is computationally expensive and is a "last resort" for when the array is already large enough but collisions persist.
+
+### Q2: Why is HashMap unsafe concurrently (specifically JDK 7 Infinite Loop)?
+In JDK 7, `resize()` transfers entries by inserting them at the **head** of the new bucket list (reversing the order).
+*   **Scenario:** Two threads try to resize at the same time. Thread A gets suspended while moving a node. Thread B finishes. Thread A wakes up and continues moving nodes that have already been moved/reversed by B.
+*   **Result:** A circular reference (`A.next -> B`, `B.next -> A`) is created in the linked list. The next `get()` call enters an infinite loop, spiking CPU to 100%.
+*   **JDK 8 Fix:** JDK 8 uses "tail insertion" (maintains order) during resize, eliminating the loop possibility, though data corruption (lost updates) is still possible.
+
+### Q3: ConcurrentHashMap Null Policy
+**Question:** Why does `ConcurrentHashMap` throw Exception on `put(key, null)` or `put(null, value)`?
+**Answer:** Ambiguity in concurrent environments.
+*   In `HashMap`, `get(key)` returning `null` could mean:
+    1.  The key is missing.
+    2.  The key exists but the value is `null`.
+    *   (You verify this with `containsKey()`).
+*   In `ConcurrentHashMap`, between the call to `get()` and `containsKey()`, another thread might have removed the key. The result of `containsKey` is useless by the time you get it. Therefore, `null` is banned so that a return value of `null` **always** means "Key not found".
+
+### Q4: Fail-Fast vs. Weakly Consistent Iterators
+*   **Fail-Fast (HashMap/ArrayList):** If the collection changes (add/remove) while you are iterating, it immediately throws `ConcurrentModificationException`. It uses a `modCount` variable to detect changes.
+*   **Weakly Consistent (ConcurrentHashMap):** Iterators are designed to survive concurrent modification. They might reflect the state of the map when the iterator was created, or they *might* (but are not guaranteed to) reflect updates made after creation. They **never** throw `ConcurrentModificationException`.
+
+### Q5: JDK 7 Segmented Locking vs JDK 8+ CAS
+*   **JDK 7:** Used "Lock Stripping". The map was divided into 16 "Segments" (mini-HashMaps). A write to key in Segment 1 only locked Segment 1. Segment 2 was free. (Concurrency Level = 16).
+*   **JDK 8+:** Removed Segments. Now locks are even more granular—at the **Bucket (Bin) Head**.
+    *   If writing to a new empty bin: Use **CAS** (Compare-And-Swap) (No lock).
+    *   If writing to an existing bin (collision): Lock only that single **Bin Node** (synchronized).
+    *   Result: Millions of concurrent writers possible if hashes are well distributed.
+
+---

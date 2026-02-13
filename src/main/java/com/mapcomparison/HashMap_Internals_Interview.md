@@ -127,3 +127,130 @@ When you call `get("Key")`, steps are simpler:
 | `get()` | O(1) | O(log n) |
 | `put()` | O(1) | O(log n) |
 
+---
+
+## 5. Using Custom Objects as Keys
+
+Yes, you can use any custom object as a key in a `HashMap`. However, to ensure the map functions correctly, you **must** follow these rules:
+
+### A. The Contract: `hashCode()` and `equals()`
+If you use a custom object as a key, you must override both methods:
+1.  **`hashCode()`**: Determines which bucket the key goes into. If two keys are "equal," they must have the same hash code.
+2.  **`equals()`**: Used to find the exact key within a bucket during a collision.
+
+### B. Immutability (The Gold Standard)
+It is highly recommended to make your custom key classes **immutable**:
+- Declare fields as `private final`.
+- Do not provide setters.
+- **Why?** If the state of a key changes *after* it has been put into the map, its `hashCode` will likely change. The next time you try to `get()` it, the map will look in the wrong bucket, and the object will be "lost" inside the map.
+
+### C. Example of a Correct Custom Key
+```java
+public final class UserKey {
+    private final String userId;
+
+    public UserKey(String userId) {
+        this.userId = userId;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(userId);
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof UserKey)) return false;
+        UserKey that = (UserKey) o;
+        return Objects.equals(userId, that.userId);
+    }
+}
+```
+
+### D. Real-World Enterprise Scenarios
+
+In high-scale enterprise applications, you rarely use raw Strings as keys. Custom objects are used to handle **Multi-tenancy**, **Caching**, and **Grouping**.
+
+#### 1. Multi-Tenant Session Cache
+In a SaaS application, a `userId` might be unique only *within* a specific `tenantId`. Using a custom key ensures that User 101 from "Company A" is different from User 101 from "Company B".
+
+```java
+public final class TenantUserKey {
+    private final String tenantId;
+    private final String userId;
+
+    public TenantUserKey(String tenantId, String userId) {
+        this.tenantId = tenantId;
+        this.userId = userId;
+    }
+    // equals() and hashCode() using both fields
+}
+
+// Usage in an Auth Service
+Map<TenantUserKey, UserSession> sessionCache = new ConcurrentHashMap<>();
+```
+
+#### 2. Resource Throttling / Rate Limiting
+If you need to limit how many requests a user can make to a *specific* API endpoint, you combine them into a key.
+
+```java
+public final class ThrottlingKey {
+    private final String userId;
+    private final String apiEndpoint;
+    // ...
+}
+
+// Store the request count for that specific user on that specific endpoint
+Map<ThrottlingKey, AtomicInteger> requestCounts = new HashMap<>();
+```
+
+#### 3. Data Aggregation (Complex Grouping)
+When processing millions of records (e.g., in a financial system), you might need to group totals by `Region`, `Branch`, and `Currency`. Instead of nested maps, a single `HashMap<FinancialKey, Double>` is much faster.
+
+```java
+public final class FinancialKey {
+    private final String region;
+    private final String branchId;
+    private final String currency;
+    // ... equals and hashcode ...
+}
+```
+
+---
+
+## 6. LinkedHashMap: Why it's a Special Choice
+
+`LinkedHashMap` extends `HashMap` and provides two major advantages that make it suitable for specific high-performance and predictable scenarios.
+
+### A. Maintains Order
+Unlike `HashMap` (which is unordered) and `TreeMap` (which is sorted by key value), `LinkedHashMap` maintains a **Doubly-Linked List** of all its entries.
+- **Insertion Order (Default):** Iterating the map returns elements in the exact same order they were inserted.
+- **Access Order:** If you initialize it with `new LinkedHashMap<>(16, 0.75f, true)`, it moves any element you `get()` to the **end** of the list.
+
+### B. The LRU Cache (Least Recently Used)
+Because of its "Access Order" property, `LinkedHashMap` is the foundation of almost every manual LRU cache in Java.
+- You can override `removeEldestEntry()` to automatically delete the oldest item when the map reaches a certain size.
+
+```java
+// Example of a 100-item LRU Cache
+Map<K, V> lruCache = new LinkedHashMap<K, V>(16, 0.75f, true) {
+    @Override
+    protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+        return size() > 100;
+    }
+};
+```
+
+### C. Faster Iteration
+- **HashMap Iteration:** O(Capacity). You have to check every single bucket in the array.
+- **LinkedHashMap Iteration:** O(Size). You simply follow the linked list pointers from head to tail. If you have a map with 10 elements but an array size of 10,000, `LinkedHashMap` will be significantly faster to loop through.
+
+### Summary Comparison
+| Property | HashMap | LinkedHashMap | TreeMap |
+| :--- | :--- | :--- | :--- |
+| **Ordering** | None | Insertion or Access Order | Sorted (Natural or Comparator) |
+| **Data Structure** | Array + List/Tree | Array + List/Tree + **Doubly Linked List** | Red-Black Tree |
+| **Search Time** | O(1) | O(1) | O(log n) |
+| **Null Keys** | Allowed | Allowed | Disallowed |
+

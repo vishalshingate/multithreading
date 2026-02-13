@@ -52,7 +52,7 @@ When a senior developer analyzes a story to assign "points," we don't just look 
 
 ### 2. Execution & Daily Scrum (The Grind)
 *   **Process**: 24-hour cycle of development.
-*   **Daily Scrum**: A 15-minute sync. **Not a status report**. 
+*   **Daily Scrum**: A 15-minute sync. **Not a status report**.
     *   *Question*: "What did I do? What will I do? Are there any blockers?"
 *   **Senior Role**: This is where I identify hidden complexities early and help unblock juniors.
 
@@ -102,3 +102,4 @@ A Senior Engineer's value isn't just in writing code; it's in **multiplying the 
 *   **Clear Feedback**: Have a 1-on-1. Be specific: "I've noticed your last three tickets were significantly delayed due to X. What's holding you up?"
 *   **Action Plan**: Set small, achievable goals over 2-4 weeks. Provide extra support or pairing.
 *   **Escalation**: If there's no improvement after support and clear feedback, then involve the Engineering Manager for a formal PIP.
+

@@ -119,3 +119,113 @@ This automatically configures the Tomcat web server and the `@Async` task execut
 - **Exception Handling**: `@Async` methods returning `void` cannot propagate exceptions back to the caller. Use an `AsyncUncaughtExceptionHandler`.
 - **Thread Local Isolation**: Be careful when using `ThreadLocal` or Spring's `@RequestScope` beans in async threads, as they don't automatically transfer between threads.
 
+---
+
+## 7. Deep Dive: How `@Async` Works Under the Hood
+
+When you add `@EnableAsync` and annotate a method with `@Async`, Spring performs "magic" using **Spring AOP (Aspect Oriented Programming)**.
+
+### The Internal Flow
+1.  **Bean Post-Processing**:
+    - During startup, the `AsyncAnnotationBeanPostProcessor` scans all beans.
+    - If it finds a bean with `@Async` methods, it **wraps that bean in a Proxy** (usually a CGLIB proxy).
+
+2.  **Method Interception**:
+    - When you call `myService.asyncMethod()`, you are actually calling the **Proxy**, not the real object.
+    - The Proxy delegates the call to an `AsyncExecutionInterceptor`.
+
+3.  **Task Submission**:
+    - The interceptor wraps your method logic into a `Callable` or `Runnable`.
+    - It submits this task to the configured `Executor` (e.g., `ThreadPoolTaskExecutor`).
+
+4.  **Immediate Return**:
+    - The main thread returns immediately without waiting for the task to finish.
+    - If the method returns `CompletableFuture`, the interceptor returns a new `Future` that will be completed later by the background thread.
+
+### Diagram
+```text
+Caller Thread
+   |
+   | calls method()
+   v
+[ Spring Proxy ] <--- Intercepts call
+   |
+   | Uses AsyncExecutionInterceptor
+   | Submits task to ThreadPool
+   | Returns immediately
+   v
+(Caller continues...)
+
+       [ Thread Pool (Worker Thread) ]
+              |
+              | Executes actual logic
+              v
+       (Real Service Object)
+```
+
+### Why internal calls fail?
+This explains the "Self-Invocation" pitfall.
+- If `methodA()` calls `this.methodB()` (where `methodB` is async), it calls the method directly on the **target class instance**, bypassing the **Spring Proxy**.
+- Without the Proxy, there is no interception, so the method runs strictly synchronously on the same thread.
+
+---
+
+## 8. How to Fix Self-Invocation (Calling Async Correctly)
+
+If you need `methodA()` to call `methodB()` (which is async) within the same class, you must ensure the call goes through the **Spring Proxy**.
+
+### Option 1: Move to a Separate Service (Recommended)
+This is the cleanest approach. Separation of concerns usually dictates that if a task is big enough to be async, it might belong in its own component.
+
+```java
+@Service
+public class OrderService {
+    @Autowired
+    private EmailService emailService; // Separate bean
+
+    public void placeOrder() {
+        // ... logic ...
+        emailService.sendEmail(); // Works! Goes through Proxy.
+    }
+}
+```
+
+### Option 2: Self-Injection (The Workaround)
+You can inject the bean into itself. You **must** use `@Lazy` to avoid a circular dependency error during startup.
+
+```java
+@Service
+public class MyService {
+
+    @Autowired
+    @Lazy // specific annotation to break circular cycle
+    private MyService self;
+
+    public void mainMethod() {
+        System.out.println("Main: " + Thread.currentThread().getName());
+        // Call the method on the 'self' proxy, not 'this'
+        self.asyncMethod(); 
+    }
+
+    @Async
+    public void asyncMethod() {
+        System.out.println("Async: " + Thread.currentThread().getName());
+    }
+}
+```
+
+### Option 3: Manual Context Lookup (Last Resort)
+Retrieve the bean from `ApplicationContext` manually.
+
+```java
+@Service
+public class MyService {
+    @Autowired
+    private ApplicationContext context;
+
+    public void process() {
+        MyService proxy = context.getBean(MyService.class);
+        proxy.asyncMethod();
+    }
+}
+```

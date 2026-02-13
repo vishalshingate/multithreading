@@ -20,3 +20,8 @@ This chart details the relationships between Spring Boot, the underlying Spring 
 | **1.5.x** | 4.3.x | Java 7 | Java 7 - 9 | 1.x |
 
 > **Note:** Versions 2.x and 1.x have reached End of Support. It is highly recommended to upgrade to 3.x for active support and security updates.
+
+### Java 21 & Virtual Threads
+- **Java 21 Support**: Technically compatible with Spring Boot 2.7.x (runtime only) and fully supported in 3.1.x+.
+- **Virtual Threads (Project Loom)**: First-class support starts with **Spring Boot 3.2**.
+  - To enable: `spring.threads.virtual.enabled=true`
