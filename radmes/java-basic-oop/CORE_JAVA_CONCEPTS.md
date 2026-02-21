@@ -43,7 +43,14 @@ JVM gets heap memory from the OS. You can configure it using these flags:
 
 ---
 
-## 4. Object Lock vs Class Lock
+## 4. Java Streams Internals
+
+For a detailed explanation of **Sequential Streams vs Parallel Streams**, including internal working mechanism (Fork/Join, Spliterator) and when to use them, please refer to:
+[Java Streams Internals](JAVA_STREAMS_INTERNALS.md)
+
+---
+
+## 5. Object Lock vs Class Lock
 
 ### Object Lock (Level: Instance)
 Used to synchronize access to non-static code. Only one thread can execute a synchronized instance method on the **same object instance**.
@@ -63,7 +70,7 @@ public static synchronized void method() { ... }
 
 ---
 
-## 5. Synchronized Options Comparison
+## 6. Synchronized Options Comparison
 
 | Type | Syntax | What it locks |
 | :--- | :--- | :--- |
@@ -76,7 +83,7 @@ public static synchronized void method() { ... }
 
 ---
 
-## 6. Real World Interview Question: Why Static Variables? (ThingWorx Project Context)
+## 7. Real World Interview Question: Why Static Variables? (ThingWorx Project Context)
 
 **Question:** Why are static variables needed and where have you used them in your project (specifically ThingWorx)?
 
