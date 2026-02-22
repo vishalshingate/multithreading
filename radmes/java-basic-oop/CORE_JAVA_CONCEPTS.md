@@ -112,3 +112,130 @@ In our IoT Edge Gateway aimed at ThingWorx integration, we used `static` in thre
 
 3.  **Topic/Queue Definitions:**
     *   For the fallback mechanism, we defined the queue names (for ActiveMQ/RabbitMQ) as static variables to be shared between the *Producer Service* (reading sensors) and the *Consumer Service* (sending to ThingWorx).
+
+---
+
+## 8. Deadlock: Prevention & Avoidance
+
+**Definition:** Deadlock is a situation where two or more threads are blocked forever, waiting for each other to release a lock.
+
+**Scenario:**
+*   Thread A holds **Lock 1** and waits for **Lock 2**.
+*   Thread B holds **Lock 2** and waits for **Lock 1**.
+Since neither releases the lock the other needs, they wait indefinitely.
+
+### Strategies to Avoid Deadlock
+
+#### 1. Fixed Lock Ordering (Most Effective)
+Ensure that all threads acquire locks in the **exact same order**.
+*   **Bad:** Thread A locks (A -> B), Thread B locks (B -> A).
+*   **Good:** Both threads lock (A -> B). Thread B must wait for A to finish with A before it can even try to get B.
+
+**Code Example:**
+```java
+class Account {
+    int id;
+    double balance;
+    
+    // Method to transfer money safely
+    public static void transfer(Account from, Account to, double amount) {
+        Account firstLock = from.id < to.id ? from : to;
+        Account secondLock = from.id < to.id ? to : from;
+
+        synchronized (firstLock) {
+            synchronized (secondLock) {
+                // Transfer logic here
+                from.balance -= amount;
+                to.balance += amount;
+            }
+        }
+    }
+}
+```
+*Why this works:* Even if 100 threads transfer between random accounts, they will always lock the account with the *smaller ID* first. No circular dependency can occur.
+
+#### 2. Use `tryLock()` with Timeout
+Instead of `synchronized` (which waits forever), use `ReentrantLock` with a timeout. If a thread can't get a lock within a limit, it backs off and retries, giving other threads a chance.
+
+```java
+Lock lock1 = new ReentrantLock();
+Lock lock2 = new ReentrantLock();
+
+void execute() {
+    boolean acquired1 = lock1.tryLock(100, TimeUnit.MILLISECONDS);
+    if (acquired1) {
+        try {
+            boolean acquired2 = lock2.tryLock(100, TimeUnit.MILLISECONDS);
+            if (acquired2) {
+                try {
+                    // Critical Section
+                } finally {
+                    lock2.unlock();
+                }
+            }
+        } finally {
+            lock1.unlock();
+        }
+    }
+}
+```
+
+#### 3. Minimize Lock Scope
+Keep the `synchronized` block as short as possible. Do not perform expensive operations (like Network calls, DB queries, or File I/O) while holding a lock.
+
+#### 4. Avoid Nested Locks
+If possible, design your architecture so that a thread does not need to hold more than one lock at a time.
+
+---
+
+## 9. Deadlock: Detection & Troubleshooting
+
+How do you know if your production application is stuck in a deadlock?
+
+### Symptoms
+*   The application becomes unresponsive (requests hang).
+*   CPU usage might drop to near 0% (if all threads are waiting) or stay normal (if only some threads are deadlocked).
+*   No error logs or exceptions are thrown (threads are just waiting, not crashing).
+*   Restarting the application temporarily fixes the issue.
+
+### Detection Tools
+
+#### 1. Thread Dumps (The Gold Standard)
+A thread dump is a snapshot of all threads at a specific moment.
+*   **Command Line (jstack):**
+    Run `jps` to get the PID.
+    Run `jstack <PID> > dump.txt`.
+    Open `dump.txt` and scroll to the bottom. JVM often prints:
+    ```
+    Found one Java-level deadlock:
+    =============================
+    "Thread-1":
+      waiting to lock monitor 0x000000000... (object 0xABC)
+      which is held by "Thread-2"
+    "Thread-2":
+      waiting to lock monitor 0x000000000... (object 0xXYZ)
+      which is held by "Thread-1"
+    ```
+
+#### 2. VisualVM / JConsole
+*   Connect to the running process.
+*   Go to the **Threads** tab.
+*   Click the **"Detect Deadlock"** button. It will highlight the specific threads involved.
+
+#### 3. Programmatic Detection
+You can write a background watcher thread to check for deadlocks periodically (though not recommended for high-performance apps due to overhead).
+```java
+ThreadMXBean bean = ManagementFactory.getThreadMXBean();
+long[] threadIds = bean.findDeadlockedThreads(); // Returns null if no deadlock
+if (threadIds != null) {
+    System.err.println("Deadlock detected!");
+    // Alert logs or trigger restart
+}
+```
+
+### How to Fix?
+
+1.  **Immediate Fix:** **Restart the JVM.** A deadlock is a permanent state; threads will never recover on their own.
+2.  **Permanent Fix:**
+    *   **Analyze:** Use the Thread Dump to identify exactly *which* code lines and *which* locks are causing the cycle.
+    *   **Refactor:** Apply **Fixed Lock Ordering** (Strategy #1 in Section 8) to the code identified in the dump.
