@@ -78,21 +78,3 @@ To see the impact of N+1, we have initialized the database with:
    - One large optimized query is much faster.
 
 You can test this by calling the `findAllWithPosts()` method in `UserRepository` and observing the SQL logs.
-
-## Other Errors Mentioned
-
-### User Not Found (404)
-The error `User not found id: 9` is a custom 404 response you likely implemented. It means a user with ID 9 does not exist in the database.
-
-### GetMapping vs RequestMapping
-
-*   **@RequestMapping**: General-purpose annotation to map web requests. Can handle any HTTP method (GET, POST, etc.) if not specified.
-    ```java
-    @RequestMapping(value = "/users", method = RequestMethod.GET)
-    ```
-
-*   **@GetMapping**: A shortcut specifically for HTTP GET requests.
-    ```java
-    @GetMapping("/users")
-    ```
-    (Equivalent to the above `RequestMapping`).

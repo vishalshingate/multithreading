@@ -322,6 +322,40 @@ While you *can* technically do it, it is usually a mistake because:
 **When IS it okay?**
 *   **Local Caching**: If every instance needs to update its own internal in-memory cache (e.g., specific configuration updates), then Broadcasting (unique Group IDs) is the correct pattern.
 
+### Q9: How exactly do I implement At-Least-Once delivery in Spring Boot?
+**Answer:**
+To guarantee At-Least-Once delivery, you must ensure that offsets are **only committed after** the business logic has successfully completed.
+
+**1. Configuration (The Easy Way - Default)**
+Spring Boot's default behavior is At-Least-Once.
+*   **Property**: `enable.auto.commit=false` (Spring sets this by default to let the container manage commits).
+*   **AckMode**: `BATCH` (Default).
+*   **Behavior**: Spring processes a batch of records. If the listener returns without throwing an exception, Spring commits the offsets for the whole batch. If an exception is thrown, the offsets are NOT committed, and the batch (or record) is retried.
+
+**2. Configuration (The Hard/Safe Way - Manual Ack)**
+For critical systems (e.g., Financial), developers often prefer manual control.
+*   **AckMode**: Set `spring.kafka.listener.ack-mode=MANUAL_IMMEDIATE`.
+*   **Code Change**:
+    ```java
+    @KafkaListener(topics = "payments")
+    public void listen(ConsumerRecord<String, String> record, Acknowledgment ack) {
+        try {
+            // 1. Process Business Logic
+            paymentService.process(record.value());
+            
+            // 2. Commit Offset ONLY if successful
+            ack.acknowledge(); 
+        } catch (Exception e) {
+            // 3. Do NOT acknowledge. 
+            // The ErrorHandler will handle replays or DLQ.
+            throw e; 
+        }
+    }
+    ```
+
+**3. The Golden Rule**
+*   **Never catch and swallow exceptions** inside the listener if you want retry behavior. If you catch an exception and don't rethrow it, Spring thinks "Success" and commits the offset. Data is lost.
+
 ---
 
 ## 5. Senior Developer Debugging Toolkit & Commands
