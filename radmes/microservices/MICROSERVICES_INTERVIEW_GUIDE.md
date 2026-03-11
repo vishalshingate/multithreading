@@ -58,6 +58,12 @@ Debugging distributed systems is hard. You need the "Three Pillars of Observabil
 *   **OAuth2 & OIDC:** Standard for authorization and authentication.
 *   **JWT (JSON Web Tokens):** Stateless authentication token passed between services.
 *   **mTLS:** Mutual TLS for securing service-to-service communication.
+*   **DoS/DDoS Mitigation:**
+    *   **Rate Limiting:** Restrict the number of requests a client can make (Token Bucket, Leaky Bucket algorithms) using tools like Redis or API Gateways.
+    *   **Throttling:** Slow down the service responses instead of rejecting them outright when under load.
+    *   **Input Validation:** Sanitize inputs to prevent "Algorithmic Complexity Attacks" (e.g., hash collision attacks or regex denial of service - ReDoS).
+    *   **Timeout & Circuit Breakers:** preventing one service from waiting indefinitely and consuming resources.
+    *   **Bulkhead Pattern:** Isolate critical resources so a flood in one area doesn't crash the whole system.
 
 ## 7. Deployment & Infrastructure
 
@@ -83,3 +89,34 @@ Debugging distributed systems is hard. You need the "Three Pillars of Observabil
 **Q: Idempotency in Microservices?**
 *   *Answer:* Essential for retries. Operations should produce the same result if executed multiple times (e.g., using a unique request ID to check if an operation was already processed).
 
+**Q: How do you handle versioning in Microservices without breaking clients?**
+*   *Answer:*
+    *   **URI Versioning:** `/api/v1/resource` (Cleanest, but hard to maintain backward compatibility).
+    *   **Header Versioning:** Custom header `X-API-VERSION: 1` (Keeps URLs clean, but harder to test via browser).
+    *   **Parameter Versioning:** `/api/resource?v=1`.
+    *   **Strategy:** Always support the old version for a depreciation period (N-1 compatibility) while migrating clients.
+
+**Q: Explain the CAP theorem in the context of Microservices.**
+*   *Answer:* You can only pick two: Consistency, Availability, Partition Tolerance. In distributed systems, Partition Tolerance (P) is mandatory (network failures happen). So you choose between CP (Consistency) or AP (Availability).
+    *   **CP (Banking):** Wait for all nodes to sync before confirming. Risk: System unavailability during partitions.
+    *   **AP (Social Media Feeds):** Return the most recent data available, even if it's stale. Risk: Data inconsistency.
+
+**Q: How do you prevent the "Distributed Monolith" anti-pattern?**
+*   *Answer:* A distributed monolith happens when microservices are tightly coupled (e.g., sharing DB tables, synchronous chains of HTTP calls).
+    *   **Fix:** Ensure services share *nothing* (separate DBs). Use asynchronous messaging (events) instead of synchronous REST calls for updates. Define clear Bounded Contexts.
+
+**Q: Comparison of Choreography vs Orchestration in SAGA pattern with example?**
+*   *Answer:* 
+    *   **Scenario:** Order Service -> Payment Service -> Inventory Service.
+    *   **Orchestration:** Order Service (The Orchestrator) calls Payment, waits for success, then calls Inventory. If Inventory fails, Order Service calls "Refund" on Payment. Easy to visualize, but Order Service becomes a "God Service".
+    *   **Choreography:** Order Service emits `OrderCreated`. Payment Service listens, processes, emits `PaymentProcessed`. Inventory listens, etc. No central coordinator. Harder to debug (who triggered what?), but deeper decoupling.
+
+**Q: How to implement a Distributed Lock?**
+*   *Answer:* When multiple instances of a service try to modify a shared resource (e.g., a scheduled batch job running on multiple nodes).
+    *   **Tools:** Redis (Redlock), Zookeeper, or Database row locking.
+    *   **Mechanism:** Instance A acquires a lock with a TTL (Time To Live). If Instance B tries, it fails/waits. Once A finishes, it releases the lock.
+
+**Q: What is the "Outbox Pattern" and why is it used?**
+*   *Answer:* Solves the dual-write problem (writing to DB and publishing to Kafka must be atomic).
+    *   **Problem:** If you save to DB but fail to publish to Kafka, the systems are inconsistent.
+    *   **Solution:** Save the event in an "Outbox" table *in the same transaction* as your business data. A separate background process (Debezium/Poller) reads the Outbox table and publishes to Kafka reliably.

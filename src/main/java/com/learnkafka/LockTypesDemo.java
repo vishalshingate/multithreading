@@ -27,6 +27,8 @@ public class LockTypesDemo {
 
         t3.start();
         t4.start();
+
+        // NOTE: For Deadlock scenarios and solutions, see DeadlockSolutionDemo.java
     }
 }
 
@@ -51,4 +53,3 @@ class SharedResource {
         System.out.println(Thread.currentThread().getName() + " released CLASS lock");
     }
 }
-

@@ -93,3 +93,49 @@ JMM defines how threads interact through memory.
 *   `keepAliveTime`: Time before idle excess threads die.
 *   `workQueue`: Queue for holding tasks (ArrayBlockingQueue, LinkedBlockingQueue).
 
+---
+
+## 3. Java 8 Features (Important for Interviews)
+
+### A. Lambda Expressions & Functional Interfaces
+*   **Lambda:** Anonymous function (`(args) -> body`). Concise implementation of single method interface.
+*   **Functional Interface:** Interface with exactly one abstract method. (`@FunctionalInterface`).
+    *   `Predicate<T>`: `boolean test(T t)`
+    *   `Consumer<T>`: `void accept(T t)`
+    *   `Supplier<T>`: `T get()`
+    *   `Function<T,R>`: `R apply(T t)`
+
+### B. Stream API (`java.util.stream`)
+Allows declarative processing of collections.
+*   **Intermediate (Lazy):** `filter`, `map`, `sorted`, `distinct`, `peek`.
+*   **Terminal (Eager):** `collect`, `forEach`, `reduce`, `count`, `anyMatch`.
+*   **Parallel Stream:** Uses ForkJoinPool common pool for parallel processing. `list.parallelStream()`.
+
+**Example:**
+```java
+List<String> result = list.stream()
+    .filter(s -> s.startsWith("A"))
+    .map(String::toUpperCase)
+    .collect(Collectors.toList());
+```
+
+### C. Optional Class (`java.util.Optional`)
+Container to avoid `NullPointerException`.
+*   `Optional.of(value)`: throws NPE if null.
+*   `Optional.ofNullable(value)`: allows null.
+*   `user.ifPresent(u -> print(u))`
+*   `user.orElse(defaultUser)`
+
+### D. Default & Static Methods in Interfaces
+*   **Default Methods:** Concrete methods inside interface using `default` keyword. Used for backward compatibility (e.g., `stream()` in `Collection`).
+*   **Static Methods:** Utility methods inside interface (e.g., `Stream.of()`).
+
+### E. Method References (`::`)
+Shorthand for lambda calling a specific method.
+*   `System.out::println` (Instance method)
+*   `Math::max` (Static method)
+*   `String::new` (Constructor reference)
+
+### F. Date/Time API (`java.time`)
+Immutable and Thread-safe.
+*   `LocalDate`, `LocalTime`, `LocalDateTime`, `ZonedDateTime`, `Duration`, `Period`.

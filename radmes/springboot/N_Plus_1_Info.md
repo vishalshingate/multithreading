@@ -78,3 +78,12 @@ To see the impact of N+1, we have initialized the database with:
    - One large optimized query is much faster.
 
 You can test this by calling the `findAllWithPosts()` method in `UserRepository` and observing the SQL logs.
+
+---
+
+## 4. DTO Projections (The Fastest Way)
+
+If you only need specific fields (e.g., `username`, `post title`) and not the full Entity, use **DTO Projections**.
+This completely avoids loading Entities into Hibernate's session, guaranteeing **Zero N+1 risk**.
+
+See [DTO_PROJECTIONS.md](DTO_PROJECTIONS.md) for a detailed guide on Interface-based and Class-based projections.

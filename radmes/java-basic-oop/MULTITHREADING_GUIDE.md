@@ -229,3 +229,36 @@ public class MyService {
     }
 }
 ```
+
+---
+
+## 9. Core Java Concurrency Comparisons
+
+### `Future` vs `CompletableFuture`
+
+| Feature | `Future` (Java 5) | `CompletableFuture` (Java 8) |
+| :--- | :--- | :--- |
+| **Blocking** | `get()` blocks until result is ready. | Non-blocking via callbacks (`thenApply`, `thenAccept`). |
+| **Chaining/Pipelining** | No built-in support. | Supports chaining dependent tasks (`thenCompose`). |
+| **Exception Handling** | Difficult inside a thread. | Built-in methods (`exceptionally`, `handle`). |
+| **Manual Completion** | Cannot force complete. | Can be manually completed (`complete(value)`). |
+| **Combining** | Hard to coordinate multiple futures. | Easy (`allOf`, `anyOf`). |
+
+### `execute()` vs `submit()`
+
+| Feature | `execute(Runnable r)` | `submit(Callable c)` or `submit(Runnable r)` |
+| :--- | :--- | :--- |
+| **Interface** | Defined in `Executor`. | Defined in `ExecutorService` (extends `Executor`). |
+| **Return Type** | `void`. Fire-and-forget. | Returns a `Future<?>`. |
+| **Exception Handling** | Exceptions in the task are unhandled (unless caught inside). | Exceptions are captured in the `Future`. Calling `future.get()` throws `ExecutionException` wrapping the original error. |
+| **Use Case** | Ideal for tasks where you do NOT care about the result or completion status. | Tasks where you need a result or need to check if it finished successfully. |
+
+### `Runnable` vs `Callable`
+
+| Feature | `Runnable` | `Callable` |
+| :--- | :--- | :--- |
+| **Return Value** | `void`. Cannot return a result. | Returns `V` (Generic type). |
+| **Exceptions** | Cannot throw checked exceptions. | Can throw `Exception`. |
+| **Method** | `run()` | `call()` |
+| **Example** | `new Thread(runnable).start()` | Submitted to an `ExecutorService`. |
+

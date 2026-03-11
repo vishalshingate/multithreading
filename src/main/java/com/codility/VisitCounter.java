@@ -3,8 +3,7 @@ package com.codility;
 import java.util.*;
 import java.util.stream.*;
 
-public class VisitCounter {
-
+public class VisitCounter extends Thread{
     public static class UserStats {
         Optional<Long> visitCount;
 
@@ -13,6 +12,22 @@ public class VisitCounter {
         }
     }
 
+
+    public static  void test() {
+        synchronized(VisitCounter.class) {
+            System.out.println();
+        }
+    }
+        public void run(){
+         VisitCounter visitCounter = new VisitCounter();
+         visitCounter.test();
+        }
+    public static void main(String[] args) {
+        VisitCounter v1 = new  VisitCounter();
+        VisitCounter v2 = new  VisitCounter();
+        Thread t1 = new Thread(v1);
+        Thread t2 = new Thread(v2);
+    }
     public Map<Long, Long> count(Map<String, UserStats>... visits) {
         if (visits == null || visits.length == 0) {
             return Collections.emptyMap();

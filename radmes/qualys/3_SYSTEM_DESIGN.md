@@ -27,6 +27,18 @@ This document focuses on the Low-Level Design (LLD) and High-Level Design (HLD) 
 4.  **Sliding Window Log:** Store timestamps and count valid ones. High memory.
 **Implementation:** Use Redis (INCR + EXPIRE).
 
+**Spring Cloud Gateway Internal Implementation:**
+*   Uses **RedisRateLimiter** with the **Token Bucket Algorithm**.
+*   **Lua Script:** Executes logic atomically inside Redis to avoid race conditions.
+*   **Keys Used:**
+    *   `request_rate_limiter.{id}.tokens`: Number of tokens remaining.
+    *   `request_rate_limiter.{id}.timestamp`: Last time the bucket was refilled.
+*   **Logic:**
+    1.  Calculates elapsed time since last request.
+    2.  Refills tokens based on `replenishRate` * elapsed time.
+    3.  Caps tokens at `burstCapacity`.
+    4.  If tokens >= 1, decrement and allow request. Else, reject (HTTP 429).
+
 ### C. Design Logging System / Distributed Log Collector
 **Problem:** Collect logs from multiple services effectively.
 **Architecture:**
@@ -80,3 +92,11 @@ This document focuses on the Low-Level Design (LLD) and High-Level Design (HLD) 
 *   **Object Storage (S3):** Best for storing the raw comprehensive report (PDF/XML). Lower cost.
 **Processing:** Use Stream Processing (Kafka Stream / Flink) to aggregate results in real-time.
 
+### D. Monolith to Microservices Migration Strategy
+**Pattern:** **Strangler Fig Pattern**.
+*   **Concept:** Like a vine strangling a tree, you gradually replace specific pieces of functionality with new microservices until the old monolith is gone.
+*   **Steps:**
+    1.  **Identify Edges:** Find a non-critical module (e.g., Notification) to extract first.
+    2.  **Facade/Proxy:** Place an API Gateway in front of the Monolith.
+    3.  **Route Traffic:** Direct traffic for the new module to the new Microservice. Direct everything else to the legacy Monolith.
+    4.  **Repeat:** Continue extracting modules until the Monolith is empty.

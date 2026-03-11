@@ -126,3 +126,15 @@ graph TD
 1. **"When does Tomcat start?"**: It starts during the context refresh step, specifically when the `ServletWebServerFactory` bean is requested.
 2. **"Why is my CommandLineRunner null?"**: It can't be null if it runs, but if dependencies inside it are null, maybe the context didn't initialize them correctly.
 3. **"How does Spring know to look in my package?"**: Because your main class is registered first, and `@SpringBootApplication` includes `@ComponentScan` which defaults to the main class's package.
+
+The context is now fully active, all singletons are created (unless lazy), and the application is ready to accept traffic.
+
+---
+
+## Optimizing Startup Time
+
+If your application takes too long to start, check out our dedicated guide on [Improving Spring Boot Startup Time](SPRING_BOOT_STARTUP_OPTIMIZATION.md). It covers:
+1.  **Lazy Initialization** (`spring.main.lazy-initialization=true`)
+2.  **Context Indexer** (avoiding classpath scanning)
+3.  **JVM Tuning** (`-XX:TieredStopAtLevel=1`)
+4.  **Class Data Sharing (CDS)** (Spring Boot 3.3 feature)
