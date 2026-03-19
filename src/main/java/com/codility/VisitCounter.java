@@ -18,6 +18,7 @@ public class VisitCounter extends Thread{
             System.out.println();
         }
     }
+    @Override
         public void run(){
          VisitCounter visitCounter = new VisitCounter();
          visitCounter.test();
