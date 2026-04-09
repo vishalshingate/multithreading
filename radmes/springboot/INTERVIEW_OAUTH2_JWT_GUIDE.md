@@ -105,6 +105,14 @@ This happens transparently to the user."
 *   All Microservices have the **Public Key** (to verify tokens).
 *   This is more secure than Symmetric (HS256) because the microservices don't need to know the secret key."
 
+### Q5: Do you validate the token in API Gateway or every Microservice?
+**Answer:**
+"We follow the **Defense in Depth (Zero Trust)** approach.
+*   **API Gateway:** Performs the initial validation to reject invalid requests early at the edge.
+*   **Microservices:** Each service *also* validates the token (signature & expiration).
+*   **Why?** If an attacker bypasses the Gateway (e.g., via internal network), the individual service is still protected. It also allows services to enforce fine-grained authorization (e.g., checking specific roles or scopes) that the Gateway might not know about."
+> *For a detailed comparison of strategies, see [Token Validation Strategies](../../microservices/TOKEN_VALIDATION_STRATEGIES.md).*
+
 ---
 
 ## 🛠️ Code Snippet (Mental Model)
@@ -125,4 +133,3 @@ public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
     return http.build();
 }
 ```
-
